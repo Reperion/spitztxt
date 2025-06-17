@@ -30,11 +30,14 @@ Thumbs.db
 .pytest_cache/
 .coverage
 htmlcov/
+errors
+backup
 
 # Logs and databases
 *.log
 *.sqlite3
 *.db
+
 
 # Jupyter Notebook files
 .ipynb_checkpoints/
