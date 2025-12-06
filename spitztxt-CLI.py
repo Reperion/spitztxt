@@ -39,6 +39,13 @@ def load_chatterbox_model():
     global model, device
     print(f"{Fore.BLUE}Loading Chatterbox model...{Style.RESET_ALL}")
     device = "cuda" if torch.cuda.is_available() else "cpu"
+
+    # Suppress deprecated warnings from transformers/torch
+    import warnings
+    warnings.filterwarnings("ignore", message=".*torch.backends.cuda.sdp_kernel.*", category=FutureWarning)
+    warnings.filterwarnings("ignore", message=".*past_key_values.*tuple of tuples.*", category=FutureWarning)
+    warnings.filterwarnings("ignore", message=".*LlamaSdpaAttention.*", category=UserWarning)
+
     try:
         model = ChatterboxTTS.from_pretrained(device=device)
         print(f"{Fore.GREEN}Model loaded successfully on {device}!{Style.RESET_ALL}")
