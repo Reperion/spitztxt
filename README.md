@@ -127,11 +127,26 @@ spitztxt --smoke --smoke-dir output/smoke
 | **2** | 🧬 Voice cloning (pick template # or path) |
 | **3** | 🎭 Emotion / CFG (`exaggeration`, `cfg_weight`, …) |
 | **4** | 🔄 Voice conversion (source audio → target voice) |
-| **5** | 🧠 Switch model family |
-| **6** | 🧹 Unload model (free VRAM) |
+| **5** | 🧠 Switch model family (optional; menus also auto-switch) |
+| **6** | 🧹 Unload model (free VRAM) — optional; not required when changing menus |
 | **0** | Exit |
 
-Voice templates live in **`voice-templates/`** (drop `.mp3` / `.wav` files there). Included examples: `kitt.mp3`, `morgan_cropped.mp3`.
+**Navigation:** type **`b`** (or `back`) at **any** submenu prompt to return to the main menu.
+
+Voice templates live in **`voice-templates/`** (drop `.mp3` / `.wav` files there). Included examples: `kitt.mp3`, `kitt_clear.wav`, `morgan_cropped.mp3`.
+
+### Auto model switching (you should not babysit VRAM)
+
+Only **one** model family is kept in GPU memory at a time. Menus **switch for you**:
+
+| You open… | If the wrong model is loaded… |
+|-----------|--------------------------------|
+| **2 Clone** | After **VC**, reloads your **last TTS** family (usually `original`) |
+| **1 Basic TTS** | If Turbo/VC was loaded → switches to `original` (or last basic-capable family) |
+| **3 Emotion** | Same — needs original/multilingual (not Turbo/VC) |
+| **4 VC** | Loads the VC model automatically |
+
+You’ll see a short line like `Switching model vc → original (unloads previous to free VRAM)…` then the load timer. **No need to use menu 6 first** unless you want to free VRAM while idle.
 
 ### Model families
 
@@ -220,13 +235,14 @@ spitztxt --model vc \
 ## 🏗️ Architecture (short)
 
 ```
-spitztxt-CLI.py     → menus + argparse
+spitztxt-CLI.py     → menus + argparse + auto family switch
 spitztxt_core.py    → load / generate / save (shared by CLI + tests)
 venv-0.1.7/         → new stack (chatterbox-tts ≥ 0.1.7)
 venv → …/chatterbox/venv   → legacy 0.1.2 (spitztxt-legacy only)
 ```
 
-- **One model loaded at a time** (laptop GPU friendly). Use menu **6** or sequential `--smoke` to avoid OOM.
+- **One model loaded at a time** (laptop GPU friendly). Entering a menu that needs another family unloads the previous one automatically.
+- Menu **6** is optional (free VRAM while idle); you do **not** need it between Clone ↔ VC ↔ Emotion.
 - Generation helpers are the **same code path** as the interactive UI — smokes and tests call `spitztxt_core`, not a parallel reimplementation.
 
 ---

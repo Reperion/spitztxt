@@ -198,9 +198,32 @@ def _collect_params(
     return p
 
 
+# Last TTS-capable family the user used (survives a trip through VC).
+_last_tts_family: str = core.MODEL_ORIGINAL
+
+TTS_FAMILIES = (core.MODEL_ORIGINAL, core.MODEL_TURBO, core.MODEL_MTL)
+# Basic TTS / emotion need models that accept text without a forced clone prompt path
+BASIC_TTS_FAMILIES = (core.MODEL_ORIGINAL, core.MODEL_MTL)
+EMOTION_FAMILIES = (core.MODEL_ORIGINAL, core.MODEL_MTL)
+
+
+def _remember_tts_family(family: str | None) -> None:
+    global _last_tts_family
+    if family in TTS_FAMILIES:
+        _last_tts_family = family
+
+
 def ensure_model(family: str) -> None:
+    """Load family if needed; remember TTS choice for later auto-switch."""
     if core.current_family() == family and core.current_model() is not None:
+        _remember_tts_family(family)
         return
+    prev = core.current_family()
+    if prev and prev != family:
+        print(
+            f"{Fore.YELLOW}Switching model {prev} → {family} "
+            f"(unloads previous to free VRAM)…{Style.RESET_ALL}"
+        )
     print(
         f"{Fore.BLUE}Loading '{family}' on {core.detect_device()} "
         f"(~10–30s when cached; first run can take longer if weights download)…{Style.RESET_ALL}"
@@ -208,6 +231,7 @@ def ensure_model(family: str) -> None:
     t0 = time.time()
     try:
         core.load_model(family)
+        _remember_tts_family(family)
         print(
             f"{Fore.GREEN}Ready: {family}  sr={core.current_sr()}  "
             f"in {time.time() - t0:.1f}s{Style.RESET_ALL}"
@@ -219,6 +243,41 @@ def ensure_model(family: str) -> None:
     time.sleep(0.5)
 
 
+def resolve_family_for(mode: str) -> str:
+    """
+    Pick the right model family for a menu mode without user babysitting.
+
+    mode: 'clone' | 'basic' | 'emotion' | 'vc'
+    """
+    cur = core.current_family()
+    if mode == "vc":
+        return core.MODEL_VC
+    if mode == "clone":
+        if cur in TTS_FAMILIES:
+            return cur
+        return _last_tts_family if _last_tts_family in TTS_FAMILIES else core.MODEL_ORIGINAL
+    if mode == "basic":
+        if cur in BASIC_TTS_FAMILIES:
+            return cur
+        if _last_tts_family in BASIC_TTS_FAMILIES:
+            return _last_tts_family
+        return core.MODEL_ORIGINAL
+    if mode == "emotion":
+        if cur in EMOTION_FAMILIES:
+            return cur
+        if _last_tts_family in EMOTION_FAMILIES:
+            return _last_tts_family
+        return core.MODEL_ORIGINAL
+    raise ValueError(f"unknown mode {mode}")
+
+
+def ensure_model_for(mode: str) -> str:
+    """Auto-load the family required by this menu; return the family id."""
+    fam = resolve_family_for(mode)
+    ensure_model(fam)
+    return fam
+
+
 def menu_select_model() -> None:
     print_header_and_clear()
     print(f"{Fore.BLUE}--- Select model family ---{Style.RESET_ALL}")
@@ -227,6 +286,10 @@ def menu_select_model() -> None:
     print("3. multilingual — ChatterboxMultilingualTTS (language_id required)")
     print("4. vc        — ChatterboxVC (voice conversion)")
     print("b. back")
+    print(
+        f"{Fore.WHITE}Menus auto-switch models when needed "
+        f"(e.g. VC → Clone loads your last TTS family).{Style.RESET_ALL}"
+    )
     choice = input(f"{Fore.CYAN}Choice: {Style.RESET_ALL}").strip().lower()
     mapping = {"1": core.MODEL_ORIGINAL, "2": core.MODEL_TURBO, "3": core.MODEL_MTL, "4": core.MODEL_VC}
     if choice in ("b", ""):
@@ -240,16 +303,7 @@ def menu_select_model() -> None:
 
 
 def menu_basic_tts() -> None:
-    fam = core.current_family() or core.MODEL_ORIGINAL
-    if fam == core.MODEL_VC:
-        print(f"{Fore.RED}VC is loaded — switch to original/turbo/mtl for TTS.{Style.RESET_ALL}")
-        time.sleep(2)
-        return
-    if fam == core.MODEL_TURBO:
-        print(f"{Fore.YELLOW}Turbo needs a clone prompt; use Voice Clone menu instead.{Style.RESET_ALL}")
-        time.sleep(2)
-        return
-    ensure_model(fam)
+    fam = ensure_model_for("basic")
     while True:
         print_header_and_clear()
         print(f"{Fore.BLUE}--- Basic TTS ({fam}) ---{Style.RESET_ALL}")
@@ -275,12 +329,7 @@ def menu_basic_tts() -> None:
 
 
 def menu_clone() -> None:
-    fam = core.current_family() or core.MODEL_ORIGINAL
-    if fam == core.MODEL_VC:
-        print(f"{Fore.RED}Switch to original/turbo/mtl for cloning.{Style.RESET_ALL}")
-        time.sleep(2)
-        return
-    ensure_model(fam)
+    fam = ensure_model_for("clone")
     while True:
         print_header_and_clear()
         print(f"{Fore.BLUE}--- Voice Clone ({fam}) ---{Style.RESET_ALL}")
@@ -317,18 +366,7 @@ def menu_clone() -> None:
 
 
 def menu_emotion() -> None:
-    fam = core.current_family() or core.MODEL_ORIGINAL
-    if fam == core.MODEL_TURBO:
-        print(
-            f"{Fore.YELLOW}Turbo does not support emotion/CFG. Use clone with temperature/top_k instead.{Style.RESET_ALL}"
-        )
-        time.sleep(3)
-        return
-    if fam == core.MODEL_VC:
-        print(f"{Fore.RED}VC has no emotion path.{Style.RESET_ALL}")
-        time.sleep(2)
-        return
-    ensure_model(fam)
+    fam = ensure_model_for("emotion")
     while True:
         print_header_and_clear()
         print(f"{Fore.BLUE}--- Emotion / CFG ({fam}) ---{Style.RESET_ALL}")
@@ -356,7 +394,7 @@ def menu_emotion() -> None:
 
 
 def menu_vc() -> None:
-    ensure_model(core.MODEL_VC)
+    ensure_model_for("vc")
     while True:
         print_header_and_clear()
         print(f"{Fore.BLUE}--- Voice Conversion ---{Style.RESET_ALL}")
