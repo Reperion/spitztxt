@@ -11,9 +11,14 @@
 
 # spitztxt - Your Command-Line Text-to-Speech Tool
 
+
+> **Active development:** [Reperion/spitztxt](https://github.com/Reperion/spitztxt)  
+> This project was formerly tracked as [Reperion/Chatterbox](https://github.com/Reperion/Chatterbox) (kept for history). Iterate here.
+
+
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python Version](https://img.shields.io/badge/Python-3.8%2B-blue.svg)](https://www.python.org/)
-[![Status](https://img.shields.io/badge/Status-Development-orange.svg)](https://github.com/your-username/spitztxt/pulse)
+[![Status](https://img.shields.io/badge/Status-Development-orange.svg)](https://github.com/Reperion/spitztxt)
 
 ## Description
 
@@ -40,7 +45,7 @@ To get `spitztxt` up and running, follow these steps:
 ### Clone the Repository
 
 ```bash
-git clone https://github.com/your-username/spitztxt.git
+git clone git@github.com:Reperion/spitztxt.git
 cd spitztxt
 ```
 

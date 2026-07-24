@@ -1,0 +1,5 @@
+# Core (torch/torchaudio: install per https://pytorch.org for your CUDA)
+chatterbox-tts>=0.1.2
+colorama>=0.4.6
+torch
+torchaudio
