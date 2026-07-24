@@ -51,9 +51,12 @@ def test_split_text_chunks_long_splits_sentences():
     assert "First sentence" in joined and "Third one" in joined
 
 
-def test_defaults_for_clone_paced():
+def test_defaults_for_clone_near_stock():
     p = core.defaults_for_clone("original")
-    assert p.cfg_weight <= 0.4
+    # Near stock Chatterbox; light calm only (not the overly slow 0.35/0.45 set)
+    assert p.temperature == 0.8
+    assert p.exaggeration == 0.5
+    assert 0.4 <= p.cfg_weight <= 0.5
     assert p.chunk_long_text is True
 
 

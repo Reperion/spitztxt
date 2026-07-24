@@ -111,16 +111,16 @@ class GenParams:
 
 def defaults_for_clone(family: str = MODEL_ORIGINAL) -> GenParams:
     """
-    Sensible defaults for everyday voice cloning (no knobs UI).
+    Everyday voice-clone defaults (no knobs UI).
 
-    Lower cfg_weight slows/calms pacing when the reference speaks quickly
-    (common cause of "hurried" or skipped words). Slightly lower temperature
-    for more stable delivery.
+    Close to stock Chatterbox (0.8 / 0.5 / 0.5) so character (e.g. KITT) stays
+    vivid and pacing stays natural — only a light calm vs. the raw library
+    defaults that can rush long lines.
     """
     family = (family or MODEL_ORIGINAL).lower()
     if family == MODEL_TURBO:
         return GenParams(
-            temperature=0.7,
+            temperature=0.8,
             top_p=0.95,
             top_k=1000,
             cfg_weight=0.0,
@@ -131,20 +131,20 @@ def defaults_for_clone(family: str = MODEL_ORIGINAL) -> GenParams:
         )
     if family == MODEL_MTL:
         return GenParams(
-            temperature=0.7,
-            cfg_weight=0.35,
-            exaggeration=0.45,
+            temperature=0.8,
+            cfg_weight=0.45,
+            exaggeration=0.5,
             repetition_penalty=2.0,
             min_p=0.05,
             top_p=1.0,
             language_id="en",
             chunk_long_text=True,
         )
-    # original
+    # original — stock-ish; cfg 0.45 is a hair calmer than 0.5 for long lines
     return GenParams(
-        temperature=0.7,
-        cfg_weight=0.35,
-        exaggeration=0.45,
+        temperature=0.8,
+        cfg_weight=0.45,
+        exaggeration=0.5,
         repetition_penalty=1.2,
         min_p=0.05,
         top_p=1.0,
@@ -260,14 +260,35 @@ def load_model(family: str, device: Optional[str] = None) -> Any:
     unload_model()
     _device = device or detect_device()
 
-    # Suppress noisy third-party warnings (perth pkg_resources, transformers, etc.)
+    # Suppress noisy third-party warnings (perth, transformers SDPA, etc.)
     import warnings
+    import logging as _logging
 
     warnings.filterwarnings("ignore", category=FutureWarning)
     warnings.filterwarnings("ignore", message=".*LlamaSdpaAttention.*", category=UserWarning)
     warnings.filterwarnings("ignore", message=".*pkg_resources is deprecated.*", category=UserWarning)
     warnings.filterwarnings("ignore", message=".*sdpa.*output_attentions.*", category=UserWarning)
     warnings.filterwarnings("ignore", message=".*output_attentions.*", category=UserWarning)
+    warnings.filterwarnings(
+        "ignore",
+        message=".*attention does not support `output_attentions=True`.*",
+        category=UserWarning,
+    )
+    # transformers often logs the SDPA note at WARNING level (not only warnings.warn)
+    class _DropSdpaNoise(_logging.Filter):
+        def filter(self, record: _logging.LogRecord) -> bool:
+            msg = record.getMessage()
+            if "output_attentions" in msg and "sdpa" in msg.lower():
+                return False
+            if "LlamaSdpaAttention" in msg:
+                return False
+            return True
+
+    _sdpa_filter = _DropSdpaNoise()
+    for _name in ("transformers", "transformers.modeling_utils"):
+        _log = _logging.getLogger(_name)
+        if not any(isinstance(f, _DropSdpaNoise) for f in _log.filters):
+            _log.addFilter(_sdpa_filter)
 
     if family == MODEL_ORIGINAL:
         from chatterbox.tts import ChatterboxTTS
