@@ -169,11 +169,14 @@ def load_model(family: str, device: Optional[str] = None) -> Any:
     unload_model()
     _device = device or detect_device()
 
-    # Suppress noisy future warnings from deps
+    # Suppress noisy third-party warnings (perth pkg_resources, transformers, etc.)
     import warnings
 
     warnings.filterwarnings("ignore", category=FutureWarning)
     warnings.filterwarnings("ignore", message=".*LlamaSdpaAttention.*", category=UserWarning)
+    warnings.filterwarnings("ignore", message=".*pkg_resources is deprecated.*", category=UserWarning)
+    warnings.filterwarnings("ignore", message=".*sdpa.*output_attentions.*", category=UserWarning)
+    warnings.filterwarnings("ignore", message=".*output_attentions.*", category=UserWarning)
 
     if family == MODEL_ORIGINAL:
         from chatterbox.tts import ChatterboxTTS

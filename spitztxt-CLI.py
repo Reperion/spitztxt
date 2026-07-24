@@ -129,15 +129,22 @@ def _collect_params(family: str) -> core.GenParams:
 def ensure_model(family: str) -> None:
     if core.current_family() == family and core.current_model() is not None:
         return
-    print(f"{Fore.BLUE}Loading model family '{family}' (may download weights)...{Style.RESET_ALL}")
+    print(
+        f"{Fore.BLUE}Loading '{family}' on {core.detect_device()} "
+        f"(~10–30s when cached; first run can take longer if weights download)…{Style.RESET_ALL}"
+    )
+    t0 = time.time()
     try:
         core.load_model(family)
-        print(f"{Fore.GREEN}Loaded {family} on {core.detect_device()}  sr={core.current_sr()}{Style.RESET_ALL}")
+        print(
+            f"{Fore.GREEN}Ready: {family}  sr={core.current_sr()}  "
+            f"in {time.time() - t0:.1f}s{Style.RESET_ALL}"
+        )
     except Exception as e:
         print(f"{Fore.RED}Failed to load {family}: {e}{Style.RESET_ALL}")
         logging.error("load_model %s: %s", family, e, exc_info=True)
         raise
-    time.sleep(1)
+    time.sleep(0.5)
 
 
 def menu_select_model() -> None:
@@ -301,11 +308,17 @@ def menu_vc() -> None:
 def interactive_main() -> int:
     core.ensure_output_dirs()
     print_header_and_clear()
-    print(f"{Fore.GREEN}Loading default model: original...{Style.RESET_ALL}")
+    print(
+        f"{Fore.GREEN}Starting spitztxt (chatterbox-tts {core.package_version()}). "
+        f"Loading default model: original…{Style.RESET_ALL}"
+    )
     try:
         ensure_model(core.MODEL_ORIGINAL)
     except Exception:
-        print(f"{Fore.RED}Could not load original model. You can still try other families from the menu.{Style.RESET_ALL}")
+        print(
+            f"{Fore.RED}Could not load original model. "
+            f"You can still pick another family from the menu (5).{Style.RESET_ALL}"
+        )
         time.sleep(2)
 
     while True:
