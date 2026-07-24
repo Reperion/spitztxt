@@ -57,15 +57,42 @@ def print_header_and_clear() -> None:
     )
 
 
+class BackToMenu(Exception):
+    """User typed b / back — return to the main menu."""
+
+
+def _is_back(raw: str) -> bool:
+    return (raw or "").strip().lower() in ("b", "back")
+
+
+def _prompt_line(label: str, *, default: str | None = None) -> str:
+    """Read a line; raise BackToMenu on b/back. Empty uses default if given."""
+    hint = f" [default {default}]" if default is not None else ""
+    raw = input(f"{Fore.CYAN}{label}{hint} (or 'b' back): {Style.RESET_ALL}").strip()
+    if _is_back(raw):
+        raise BackToMenu()
+    if not raw and default is not None:
+        return default
+    return raw
+
+
 def _prompt_float(label: str, default: float) -> float:
-    raw = input(f"{Fore.CYAN}{label} [default {default}]: {Style.RESET_ALL}").strip()
+    raw = input(
+        f"{Fore.CYAN}{label} [default {default}] (or 'b' back): {Style.RESET_ALL}"
+    ).strip()
+    if _is_back(raw):
+        raise BackToMenu()
     if not raw:
         return default
     return float(raw)
 
 
 def _prompt_int(label: str, default: int) -> int:
-    raw = input(f"{Fore.CYAN}{label} [default {default}]: {Style.RESET_ALL}").strip()
+    raw = input(
+        f"{Fore.CYAN}{label} [default {default}] (or 'b' back): {Style.RESET_ALL}"
+    ).strip()
+    if _is_back(raw):
+        raise BackToMenu()
     if not raw:
         return default
     return int(raw)
@@ -73,7 +100,9 @@ def _prompt_int(label: str, default: int) -> int:
 
 def _prompt_bool(label: str, default: bool) -> bool:
     d = "Y/n" if default else "y/N"
-    raw = input(f"{Fore.CYAN}{label} [{d}]: {Style.RESET_ALL}").strip().lower()
+    raw = input(f"{Fore.CYAN}{label} [{d}] (or 'b' back): {Style.RESET_ALL}").strip().lower()
+    if _is_back(raw):
+        raise BackToMenu()
     if not raw:
         return default
     return raw in ("y", "yes", "1", "true")
@@ -85,12 +114,15 @@ def _pick_template(required: bool = False) -> Path | None:
         print(f"{Fore.WHITE}Voice templates:{Style.RESET_ALL}")
         for i, t in enumerate(templates, 1):
             print(f"  {i}. {t.name}")
+    skip = "blank to skip" if not required else "required"
     raw = input(
-        f"{Fore.CYAN}Prompt path / template # / blank to skip: {Style.RESET_ALL}"
+        f"{Fore.CYAN}Prompt path / template # / {skip} / 'b' back: {Style.RESET_ALL}"
     ).strip()
+    if _is_back(raw):
+        raise BackToMenu()
     if not raw:
         if required:
-            raise ValueError("A voice prompt is required for this mode")
+            raise ValueError("A voice prompt is required (or type 'b' to go back)")
         return None
     return core.resolve_prompt(raw, templates)
 
@@ -116,8 +148,10 @@ def _collect_params(
     if ask_first and not force:
         raw = input(
             f"{Fore.CYAN}Tune sampling knobs? [y/N] "
-            f"(default: paced clone settings, no prompts): {Style.RESET_ALL}"
+            f"(default: clone settings) / 'b' back: {Style.RESET_ALL}"
         ).strip().lower()
+        if _is_back(raw):
+            raise BackToMenu()
         if raw not in ("y", "yes", "1"):
             print(
                 f"{Fore.WHITE}Using defaults: temp={p.temperature} cfg={p.cfg_weight} "
@@ -126,7 +160,7 @@ def _collect_params(
             return p
 
     print(
-        f"{Fore.YELLOW}Sampling knobs — press Enter to keep each default. "
+        f"{Fore.YELLOW}Sampling knobs — Enter keeps default; 'b' back to main menu. "
         f"Unsupported knobs skipped for {family}.{Style.RESET_ALL}"
     )
     if family == core.MODEL_TURBO:
@@ -155,7 +189,11 @@ def _collect_params(
     if caps["language_id"]:
         langs = core.get_supported_languages()
         print(f"{Fore.WHITE}Languages (sample): {', '.join(list(langs.keys())[:12])}...{Style.RESET_ALL}")
-        lid = input(f"{Fore.CYAN}language_id [default {p.language_id}]: {Style.RESET_ALL}").strip()
+        lid = input(
+            f"{Fore.CYAN}language_id [default {p.language_id}] (or 'b' back): {Style.RESET_ALL}"
+        ).strip()
+        if _is_back(lid):
+            raise BackToMenu()
         p.language_id = lid or p.language_id
     return p
 
@@ -215,20 +253,21 @@ def menu_basic_tts() -> None:
     while True:
         print_header_and_clear()
         print(f"{Fore.BLUE}--- Basic TTS ({fam}) ---{Style.RESET_ALL}")
-        text = input(f"{Fore.CYAN}Text (or 'b' back): {Style.RESET_ALL}")
-        if text.lower() == "b":
-            return
-        name = input(f"{Fore.CYAN}Output name [basic_tts]: {Style.RESET_ALL}").strip() or "basic_tts"
-        out = core.OUTPUT_DIR / core.ensure_wav_name(name)
-        params = core.GenParams()
-        if fam == core.MODEL_MTL:
-            params.language_id = (
-                input(f"{Fore.CYAN}language_id [en]: {Style.RESET_ALL}").strip() or "en"
-            )
+        print(f"{Fore.WHITE}Type 'b' at any prompt to return to the main menu.{Style.RESET_ALL}")
         try:
+            text = _prompt_line("Text")
+            if not text:
+                continue
+            name = _prompt_line("Output name", default="basic_tts")
+            out = core.OUTPUT_DIR / core.ensure_wav_name(name)
+            params = core.GenParams()
+            if fam == core.MODEL_MTL:
+                params.language_id = _prompt_line("language_id", default="en") or "en"
             path = core.generate_tts(text, family=fam, params=params, out_path=out)
             print(f"{Fore.GREEN}Saved {path}{Style.RESET_ALL}")
             logging.info("basic tts -> %s", path)
+        except BackToMenu:
+            return
         except Exception as e:
             print(f"{Fore.RED}Error: {e}{Style.RESET_ALL}")
             logging.error("basic tts: %s", e, exc_info=True)
@@ -245,28 +284,20 @@ def menu_clone() -> None:
     while True:
         print_header_and_clear()
         print(f"{Fore.BLUE}--- Voice Clone ({fam}) ---{Style.RESET_ALL}")
+        print(f"{Fore.WHITE}Type 'b' at any prompt to return to the main menu.{Style.RESET_ALL}")
         try:
             prompt = _pick_template(required=True)
-        except Exception as e:
-            print(f"{Fore.RED}{e}{Style.RESET_ALL}")
-            time.sleep(2)
-            continue
-        text = input(f"{Fore.CYAN}Text to speak (or 'b' back): {Style.RESET_ALL}")
-        if text.lower() == "b":
-            return
-        name = input(f"{Fore.CYAN}Output name [cloned]: {Style.RESET_ALL}").strip() or "cloned"
-        if fam == core.MODEL_TURBO:
-            out = core.OUTPUT_TURBO_DIR / core.ensure_wav_name(name)
-        elif fam == core.MODEL_MTL:
-            out = core.OUTPUT_MTL_DIR / core.ensure_wav_name(name)
-        else:
-            out = core.OUTPUT_DIR / core.ensure_wav_name(name)
-        # Knobs optional — default is paced clone settings (no multi-prompt form)
-        params = _collect_params(fam, base=core.defaults_for_clone(fam), ask_first=True)
-        if fam == core.MODEL_MTL and params.language_id == "en":
-            # only ask language if they didn't open advanced knobs (still one optional field)
-            pass
-        try:
+            text = _prompt_line("Text to speak")
+            if not text:
+                continue
+            name = _prompt_line("Output name", default="cloned")
+            if fam == core.MODEL_TURBO:
+                out = core.OUTPUT_TURBO_DIR / core.ensure_wav_name(name)
+            elif fam == core.MODEL_MTL:
+                out = core.OUTPUT_MTL_DIR / core.ensure_wav_name(name)
+            else:
+                out = core.OUTPUT_DIR / core.ensure_wav_name(name)
+            params = _collect_params(fam, base=core.defaults_for_clone(fam), ask_first=True)
             n_chunks = len(core.split_text_chunks(text, params.max_chunk_chars))
             if n_chunks > 1:
                 print(
@@ -277,6 +308,8 @@ def menu_clone() -> None:
             )
             print(f"{Fore.GREEN}Saved {path}{Style.RESET_ALL}")
             logging.info("clone -> %s", path)
+        except BackToMenu:
+            return
         except Exception as e:
             print(f"{Fore.RED}Error: {e}{Style.RESET_ALL}")
             logging.error("clone: %s", e, exc_info=True)
@@ -299,26 +332,23 @@ def menu_emotion() -> None:
     while True:
         print_header_and_clear()
         print(f"{Fore.BLUE}--- Emotion / CFG ({fam}) ---{Style.RESET_ALL}")
-        text = input(f"{Fore.CYAN}Text (or 'b'): {Style.RESET_ALL}")
-        if text.lower() == "b":
-            return
+        print(f"{Fore.WHITE}Type 'b' at any prompt to return to the main menu.{Style.RESET_ALL}")
         try:
+            text = _prompt_line("Text")
+            if not text:
+                continue
             prompt = _pick_template(required=False)
-        except Exception as e:
-            print(f"{Fore.RED}{e}{Style.RESET_ALL}")
-            time.sleep(2)
-            continue
-        # Emotion menu is for tuning — still optional: N keeps clone-style defaults
-        params = _collect_params(
-            fam, base=core.defaults_for_clone(fam), ask_first=True, force=False
-        )
-        name = input(f"{Fore.CYAN}Output name [emotional]: {Style.RESET_ALL}").strip() or "emotional"
-        out = core.OUTPUT_EMOTION_DIR / core.ensure_wav_name(name)
-        try:
+            params = _collect_params(
+                fam, base=core.defaults_for_clone(fam), ask_first=True, force=False
+            )
+            name = _prompt_line("Output name", default="emotional")
+            out = core.OUTPUT_EMOTION_DIR / core.ensure_wav_name(name)
             path = core.generate_tts(
                 text, family=fam, audio_prompt_path=prompt, params=params, out_path=out
             )
             print(f"{Fore.GREEN}Saved {path}{Style.RESET_ALL}")
+        except BackToMenu:
+            return
         except Exception as e:
             print(f"{Fore.RED}Error: {e}{Style.RESET_ALL}")
             logging.error("emotion: %s", e, exc_info=True)
@@ -331,20 +361,18 @@ def menu_vc() -> None:
         print_header_and_clear()
         print(f"{Fore.BLUE}--- Voice Conversion ---{Style.RESET_ALL}")
         print("Convert source speech into the target speaker's voice.")
-        src = input(f"{Fore.CYAN}Source audio path (or 'b'): {Style.RESET_ALL}").strip()
-        if src.lower() == "b":
-            return
+        print(f"{Fore.WHITE}Type 'b' at any prompt to return to the main menu.{Style.RESET_ALL}")
         try:
+            src = _prompt_line("Source audio path")
+            if not src:
+                continue
             target = _pick_template(required=True)
-        except Exception as e:
-            print(f"{Fore.RED}{e}{Style.RESET_ALL}")
-            time.sleep(2)
-            continue
-        name = input(f"{Fore.CYAN}Output name [vc_out]: {Style.RESET_ALL}").strip() or "vc_out"
-        out = core.OUTPUT_VC_DIR / core.ensure_wav_name(name)
-        try:
+            name = _prompt_line("Output name", default="vc_out")
+            out = core.OUTPUT_VC_DIR / core.ensure_wav_name(name)
             path = core.generate_vc(src, target, out_path=out)
             print(f"{Fore.GREEN}Saved {path}{Style.RESET_ALL}")
+        except BackToMenu:
+            return
         except Exception as e:
             print(f"{Fore.RED}Error: {e}{Style.RESET_ALL}")
             logging.error("vc: %s", e, exc_info=True)
@@ -377,27 +405,31 @@ def interactive_main() -> int:
         print(f"{Style.BRIGHT}5. Select model family{Style.RESET_ALL}")
         print(f"{Style.BRIGHT}6. Unload model (free VRAM){Style.RESET_ALL}")
         print(f"{Style.BRIGHT}0. Exit{Style.RESET_ALL}")
-        choice = input(f"{Fore.CYAN}Choice: {Style.RESET_ALL}").strip()
-        if choice == "1":
-            menu_basic_tts()
-        elif choice == "2":
-            menu_clone()
-        elif choice == "3":
-            menu_emotion()
-        elif choice == "4":
-            menu_vc()
-        elif choice == "5":
-            menu_select_model()
-        elif choice == "6":
-            core.unload_model()
-            print(f"{Fore.GREEN}Unloaded.{Style.RESET_ALL}")
-            time.sleep(1)
-        elif choice == "0":
-            print(f"{Fore.GREEN}Goodbye!{Style.RESET_ALL}")
-            return 0
-        else:
-            print(f"{Fore.RED}Invalid choice{Style.RESET_ALL}")
-            time.sleep(1)
+        print(f"{Fore.WHITE}(In submenus, type 'b' anytime to come back here.){Style.RESET_ALL}")
+        choice = input(f"{Fore.CYAN}Choice: {Style.RESET_ALL}").strip().lower()
+        try:
+            if choice == "1":
+                menu_basic_tts()
+            elif choice == "2":
+                menu_clone()
+            elif choice == "3":
+                menu_emotion()
+            elif choice == "4":
+                menu_vc()
+            elif choice == "5":
+                menu_select_model()
+            elif choice == "6":
+                core.unload_model()
+                print(f"{Fore.GREEN}Unloaded.{Style.RESET_ALL}")
+                time.sleep(1)
+            elif choice in ("0", "q", "quit", "exit"):
+                print(f"{Fore.GREEN}Goodbye!{Style.RESET_ALL}")
+                return 0
+            else:
+                print(f"{Fore.RED}Invalid choice{Style.RESET_ALL}")
+                time.sleep(1)
+        except BackToMenu:
+            continue
 
 
 def build_parser() -> argparse.ArgumentParser:
