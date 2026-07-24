@@ -103,7 +103,98 @@ class GenParams:
     top_k: int = 1000
     norm_loudness: bool = True
     language_id: str = "en"
+    # Auto-split long scripts so the model is less likely to rush/skip phrases
+    chunk_long_text: bool = True
+    max_chunk_chars: int = 160
     extra: dict[str, Any] = field(default_factory=dict)
+
+
+def defaults_for_clone(family: str = MODEL_ORIGINAL) -> GenParams:
+    """
+    Sensible defaults for everyday voice cloning (no knobs UI).
+
+    Lower cfg_weight slows/calms pacing when the reference speaks quickly
+    (common cause of "hurried" or skipped words). Slightly lower temperature
+    for more stable delivery.
+    """
+    family = (family or MODEL_ORIGINAL).lower()
+    if family == MODEL_TURBO:
+        return GenParams(
+            temperature=0.7,
+            top_p=0.95,
+            top_k=1000,
+            cfg_weight=0.0,
+            exaggeration=0.0,
+            min_p=0.0,
+            norm_loudness=True,
+            chunk_long_text=True,
+        )
+    if family == MODEL_MTL:
+        return GenParams(
+            temperature=0.7,
+            cfg_weight=0.35,
+            exaggeration=0.45,
+            repetition_penalty=2.0,
+            min_p=0.05,
+            top_p=1.0,
+            language_id="en",
+            chunk_long_text=True,
+        )
+    # original
+    return GenParams(
+        temperature=0.7,
+        cfg_weight=0.35,
+        exaggeration=0.45,
+        repetition_penalty=1.2,
+        min_p=0.05,
+        top_p=1.0,
+        chunk_long_text=True,
+    )
+
+
+def split_text_chunks(text: str, max_chars: int = 160) -> list[str]:
+    """Split text into sentence-ish chunks for more reliable TTS."""
+    import re
+
+    text = (text or "").strip()
+    if not text:
+        return []
+    if len(text) <= max_chars:
+        return [text]
+
+    # Prefer sentence boundaries
+    parts = re.split(r"(?<=[.!?…])\s+", text)
+    chunks: list[str] = []
+    buf = ""
+    for part in parts:
+        part = part.strip()
+        if not part:
+            continue
+        if not buf:
+            candidate = part
+        else:
+            candidate = f"{buf} {part}"
+        if len(candidate) <= max_chars:
+            buf = candidate
+        else:
+            if buf:
+                chunks.append(buf)
+            if len(part) <= max_chars:
+                buf = part
+            else:
+                # hard-wrap long run-ons on commas / spaces
+                while len(part) > max_chars:
+                    cut = part.rfind(",", 0, max_chars)
+                    if cut < max_chars // 3:
+                        cut = part.rfind(" ", 0, max_chars)
+                    if cut < max_chars // 3:
+                        cut = max_chars
+                    chunks.append(part[:cut].strip())
+                    part = part[cut:].lstrip(" ,")
+                buf = part
+    if buf:
+        chunks.append(buf)
+    return [c for c in chunks if c]
 
 
 # Module-level single-model slot
@@ -240,6 +331,70 @@ def save_wav(wav: torch.Tensor, path: Path | str, sr: Optional[int] = None) -> P
     return path
 
 
+def _build_generate_kwargs(
+    fam: str,
+    text: str,
+    prompt: Optional[str],
+    params: GenParams,
+) -> dict[str, Any]:
+    kwargs: dict[str, Any] = {"text": text}
+    if fam == MODEL_ORIGINAL:
+        kwargs.update(
+            audio_prompt_path=prompt,
+            temperature=params.temperature,
+            cfg_weight=params.cfg_weight,
+            exaggeration=params.exaggeration,
+            repetition_penalty=params.repetition_penalty,
+            min_p=params.min_p,
+            top_p=params.top_p,
+        )
+    elif fam == MODEL_TURBO:
+        if not prompt:
+            raise ValueError("Turbo requires audio_prompt_path (reference > ~5s recommended)")
+        kwargs.update(
+            audio_prompt_path=prompt,
+            temperature=params.temperature,
+            top_p=params.top_p,
+            top_k=params.top_k,
+            repetition_penalty=params.repetition_penalty,
+            norm_loudness=params.norm_loudness,
+            cfg_weight=0.0,
+            exaggeration=0.0,
+            min_p=0.0,
+        )
+    elif fam == MODEL_MTL:
+        kwargs.update(
+            language_id=params.language_id,
+            audio_prompt_path=prompt,
+            temperature=params.temperature,
+            cfg_weight=params.cfg_weight,
+            exaggeration=params.exaggeration,
+            repetition_penalty=params.repetition_penalty
+            if params.repetition_penalty != 1.2
+            else 2.0,
+            min_p=params.min_p,
+            top_p=params.top_p,
+        )
+    else:
+        raise ValueError(fam)
+    return kwargs
+
+
+def _concat_wavs(wavs: list[torch.Tensor], sr: int, gap_ms: int = 180) -> torch.Tensor:
+    """Concatenate mono/stereo tensors with a short silence gap."""
+    if len(wavs) == 1:
+        return wavs[0]
+    gap = torch.zeros(1, int(sr * gap_ms / 1000.0))
+    pieces: list[torch.Tensor] = []
+    for i, w in enumerate(wavs):
+        if w.dim() == 1:
+            w = w.unsqueeze(0)
+        pieces.append(w.cpu())
+        if i < len(wavs) - 1:
+            pieces.append(gap)
+    return torch.cat(pieces, dim=1)
+
+
 def generate_tts(
     text: str,
     *,
@@ -251,6 +406,9 @@ def generate_tts(
     """
     Text-to-speech (optional voice clone) for original / turbo / multilingual.
     Returns path to saved WAV.
+
+    Long text is split into chunks by default (see GenParams.chunk_long_text)
+    to reduce rushed/skipped phrases.
     """
     params = params or GenParams()
     fam = family or _loaded_family
@@ -266,51 +424,20 @@ def generate_tts(
         raise ValueError(f"{fam} does not support text TTS")
 
     prompt = str(audio_prompt_path) if audio_prompt_path else None
-    kwargs: dict[str, Any] = {"text": text}
 
-    if fam == MODEL_ORIGINAL:
-        kwargs.update(
-            audio_prompt_path=prompt,
-            temperature=params.temperature,
-            cfg_weight=params.cfg_weight,
-            exaggeration=params.exaggeration,
-            repetition_penalty=params.repetition_penalty,
-            min_p=params.min_p,
-            top_p=params.top_p,
-        )
-    elif fam == MODEL_TURBO:
-        # CFG / exaggeration / min_p ignored by library — only pass supported knobs
-        if not prompt:
-            raise ValueError("Turbo requires audio_prompt_path (reference > ~5s recommended)")
-        kwargs.update(
-            audio_prompt_path=prompt,
-            temperature=params.temperature,
-            top_p=params.top_p,
-            top_k=params.top_k,
-            repetition_penalty=params.repetition_penalty,
-            norm_loudness=params.norm_loudness,
-            # keep zeros so library does not warn unless user forced values
-            cfg_weight=0.0,
-            exaggeration=0.0,
-            min_p=0.0,
-        )
-    elif fam == MODEL_MTL:
-        kwargs.update(
-            language_id=params.language_id,
-            audio_prompt_path=prompt,
-            temperature=params.temperature,
-            cfg_weight=params.cfg_weight,
-            exaggeration=params.exaggeration,
-            repetition_penalty=params.repetition_penalty
-            if params.repetition_penalty != 1.2
-            else 2.0,  # mtl default
-            min_p=params.min_p,
-            top_p=params.top_p,
-        )
+    if params.chunk_long_text:
+        chunks = split_text_chunks(text, max_chars=params.max_chunk_chars)
     else:
-        raise ValueError(fam)
+        chunks = [text.strip()] if text.strip() else []
+    if not chunks:
+        raise ValueError("empty text")
 
-    wav = _model.generate(**kwargs)
+    wavs: list[torch.Tensor] = []
+    for chunk in chunks:
+        kwargs = _build_generate_kwargs(fam, chunk, prompt, params)
+        wavs.append(_model.generate(**kwargs))
+
+    wav = _concat_wavs(wavs, current_sr())
 
     if out_path is None:
         if fam == MODEL_TURBO:

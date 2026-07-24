@@ -95,34 +95,68 @@ def _pick_template(required: bool = False) -> Path | None:
     return core.resolve_prompt(raw, templates)
 
 
-def _collect_params(family: str) -> core.GenParams:
+def _collect_params(
+    family: str,
+    *,
+    base: core.GenParams | None = None,
+    force: bool = False,
+    ask_first: bool = True,
+) -> core.GenParams:
+    """
+    Collect sampling knobs.
+
+    By default (ask_first=True, force=False) asks once:
+      "Tune sampling knobs? [y/N]"
+    and if no, returns `base` (or family clone defaults) with no further prompts.
+    Emotion menu can pass force=True to always show knobs (Enter keeps each default).
+    """
     caps = core.CAPABILITIES[family]
-    p = core.GenParams()
-    print(f"{Fore.YELLOW}Sampling knobs (Enter = default). Unsupported knobs skipped for {family}.{Style.RESET_ALL}")
-    if caps["temperature"]:
-        p.temperature = _prompt_float("temperature", p.temperature)
-    if caps["cfg"]:
-        p.cfg_weight = _prompt_float("cfg_weight", p.cfg_weight)
-    if caps["exaggeration"]:
-        p.exaggeration = _prompt_float("exaggeration", p.exaggeration)
-    if caps["min_p"]:
-        p.min_p = _prompt_float("min_p", p.min_p)
-    if caps["top_p"]:
-        p.top_p = _prompt_float("top_p", 0.95 if family == core.MODEL_TURBO else p.top_p)
-    if caps["top_k"]:
-        p.top_k = _prompt_int("top_k", p.top_k)
-    if caps["norm_loudness"]:
-        p.norm_loudness = _prompt_bool("norm_loudness", True)
-    if caps["language_id"]:
-        langs = core.get_supported_languages()
-        print(f"{Fore.WHITE}Languages (sample): {', '.join(list(langs.keys())[:12])}...{Style.RESET_ALL}")
-        lid = input(f"{Fore.CYAN}language_id [default en]: {Style.RESET_ALL}").strip()
-        p.language_id = lid or "en"
+    p = base or core.defaults_for_clone(family)
+
+    if ask_first and not force:
+        raw = input(
+            f"{Fore.CYAN}Tune sampling knobs? [y/N] "
+            f"(default: paced clone settings, no prompts): {Style.RESET_ALL}"
+        ).strip().lower()
+        if raw not in ("y", "yes", "1"):
+            print(
+                f"{Fore.WHITE}Using defaults: temp={p.temperature} cfg={p.cfg_weight} "
+                f"exag={p.exaggeration} (chunk long text={p.chunk_long_text}){Style.RESET_ALL}"
+            )
+            return p
+
+    print(
+        f"{Fore.YELLOW}Sampling knobs — press Enter to keep each default. "
+        f"Unsupported knobs skipped for {family}.{Style.RESET_ALL}"
+    )
     if family == core.MODEL_TURBO:
         print(
             f"{Fore.YELLOW}Note: Turbo ignores CFG, exaggeration, and min_p "
             f"(library limitation).{Style.RESET_ALL}"
         )
+    if caps["temperature"]:
+        p.temperature = _prompt_float("temperature", p.temperature)
+    if caps["cfg"]:
+        p.cfg_weight = _prompt_float(
+            "cfg_weight (lower ~0.3 = calmer / less rushed)", p.cfg_weight
+        )
+    if caps["exaggeration"]:
+        p.exaggeration = _prompt_float(
+            "exaggeration (higher can speed speech up)", p.exaggeration
+        )
+    if caps["min_p"]:
+        p.min_p = _prompt_float("min_p", p.min_p)
+    if caps["top_p"]:
+        p.top_p = _prompt_float("top_p", p.top_p)
+    if caps["top_k"]:
+        p.top_k = _prompt_int("top_k", p.top_k)
+    if caps["norm_loudness"]:
+        p.norm_loudness = _prompt_bool("norm_loudness", p.norm_loudness)
+    if caps["language_id"]:
+        langs = core.get_supported_languages()
+        print(f"{Fore.WHITE}Languages (sample): {', '.join(list(langs.keys())[:12])}...{Style.RESET_ALL}")
+        lid = input(f"{Fore.CYAN}language_id [default {p.language_id}]: {Style.RESET_ALL}").strip()
+        p.language_id = lid or p.language_id
     return p
 
 
@@ -217,7 +251,7 @@ def menu_clone() -> None:
             print(f"{Fore.RED}{e}{Style.RESET_ALL}")
             time.sleep(2)
             continue
-        text = input(f"{Fore.CYAN}Text to speak: {Style.RESET_ALL}")
+        text = input(f"{Fore.CYAN}Text to speak (or 'b' back): {Style.RESET_ALL}")
         if text.lower() == "b":
             return
         name = input(f"{Fore.CYAN}Output name [cloned]: {Style.RESET_ALL}").strip() or "cloned"
@@ -227,8 +261,17 @@ def menu_clone() -> None:
             out = core.OUTPUT_MTL_DIR / core.ensure_wav_name(name)
         else:
             out = core.OUTPUT_DIR / core.ensure_wav_name(name)
-        params = _collect_params(fam)
+        # Knobs optional — default is paced clone settings (no multi-prompt form)
+        params = _collect_params(fam, base=core.defaults_for_clone(fam), ask_first=True)
+        if fam == core.MODEL_MTL and params.language_id == "en":
+            # only ask language if they didn't open advanced knobs (still one optional field)
+            pass
         try:
+            n_chunks = len(core.split_text_chunks(text, params.max_chunk_chars))
+            if n_chunks > 1:
+                print(
+                    f"{Fore.BLUE}Long text → {n_chunks} chunks (clearer pacing, fewer skips)…{Style.RESET_ALL}"
+                )
             path = core.generate_tts(
                 text, family=fam, audio_prompt_path=prompt, params=params, out_path=out
             )
@@ -265,7 +308,10 @@ def menu_emotion() -> None:
             print(f"{Fore.RED}{e}{Style.RESET_ALL}")
             time.sleep(2)
             continue
-        params = _collect_params(fam)
+        # Emotion menu is for tuning — still optional: N keeps clone-style defaults
+        params = _collect_params(
+            fam, base=core.defaults_for_clone(fam), ask_first=True, force=False
+        )
         name = input(f"{Fore.CYAN}Output name [emotional]: {Style.RESET_ALL}").strip() or "emotional"
         out = core.OUTPUT_EMOTION_DIR / core.ensure_wav_name(name)
         try:

@@ -35,6 +35,28 @@ def test_ensure_wav_name():
     assert core.ensure_wav_name("foo.WAV") == "foo.WAV"
 
 
+def test_split_text_chunks_short_stays_one():
+    assert core.split_text_chunks("Hello there.", max_chars=160) == ["Hello there."]
+
+
+def test_split_text_chunks_long_splits_sentences():
+    text = (
+        "First sentence is here. Second sentence follows after that. "
+        "Third one also exists for good measure."
+    )
+    chunks = core.split_text_chunks(text, max_chars=40)
+    assert len(chunks) >= 2
+    assert all(len(c) <= 50 for c in chunks)  # soft bound with word wrap
+    joined = " ".join(chunks)
+    assert "First sentence" in joined and "Third one" in joined
+
+
+def test_defaults_for_clone_paced():
+    p = core.defaults_for_clone("original")
+    assert p.cfg_weight <= 0.4
+    assert p.chunk_long_text is True
+
+
 def test_resolve_prompt_templates():
     templates = core.list_voice_templates()
     assert templates, "voice-templates should contain at least one file"
