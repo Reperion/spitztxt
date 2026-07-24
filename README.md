@@ -1,124 +1,270 @@
-```
- 
-███████╗██████╗ ██╗████████╗███████╗████████╗██╗  ██╗████████╗
-██╔════╝██╔══██╗██║╚══██╔══╝╚══███╔╝╚══██╔══╝╚██╗██╔╝╚══██╔══╝
-███████╗██████╔╝██║   ██║     ███╔╝    ██║    ╚███╔╝    ██║   
-╚════██║██╔═══╝ ██║   ██║    ███╔╝     ██║    ██╔██╗    ██║   
-███████║██║     ██║   ██║   ███████╗   ██║   ██╔╝ ██╗   ██║   
-╚══════╝╚═╝     ╚═╝   ╚═╝   ╚══════╝   ╚═╝   ╚═╝  ╚═╝   ╚═╝   
+# 🎙️ spitztxt
 
-     ### spitztxt — Chatterbox TTS family CLI ###
-```
+**Local voice studio** — zero-shot voice cloning, expressive TTS, Turbo, Multilingual, and voice conversion. Powered by [ResembleAI Chatterbox](https://github.com/resemble-ai/chatterbox), wrapped in a friendly terminal UI.
 
-# spitztxt
+[![Status](https://img.shields.io/badge/status-active-brightgreen)](https://github.com/Reperion/spitztxt)
+[![Python](https://img.shields.io/badge/python-3.12+-blue)](https://www.python.org/)
+[![chatterbox-tts](https://img.shields.io/badge/chatterbox--tts-≥0.1.7-purple)](https://pypi.org/project/chatterbox-tts/)
+[![License](https://img.shields.io/badge/license-MIT-lightgrey)](LICENSE)
+[![CUDA](https://img.shields.io/badge/GPU-CUDA%20ready-76B900)](https://pytorch.org/)
 
-> **Active repo:** [Reperion/spitztxt](https://github.com/Reperion/spitztxt)  
-> Formerly [Reperion/Chatterbox](https://github.com/Reperion/Chatterbox) (kept for history).
+> **What is this for?**  
+> Drop a few seconds of clean speech (KITT, Morgan, *your* voice, a character…), type any line, and get a high-quality WAV out — **on your own GPU**, no cloud API, no fine-tuning.  
+> Built for makers, video/audio experiments, local agents, and anyone who wants **fast iteration** on cloned / emotional speech.
 
-CLI for **ResembleAI Chatterbox** — basic TTS, zero-shot voice cloning, emotion/CFG, **Turbo**, **Multilingual**, and **Voice Conversion**.
+Formerly tracked as [Reperion/Chatterbox](https://github.com/Reperion/Chatterbox) (kept for history). **This repo is the active home.**
 
-| Stack | Package | How to run |
-|-------|---------|------------|
-| **Default (new)** | `chatterbox-tts` **≥ 0.1.7** in `venv-0.1.7/` | `spitztxt` |
-| **Legacy** | `chatterbox-tts` **0.1.2** in linked `venv/` | `spitztxt-legacy` |
+---
 
-## Quick start
+## ✨ The goal
+
+| You want… | spitztxt gives you… |
+|-----------|---------------------|
+| 🎤 Clone a voice without training | Zero-shot clone from a short reference clip |
+| 🎭 Control drama / pacing | `exaggeration` + `cfg_weight` (original / multilingual) |
+| ⚡ Fast drafts | **Turbo** model path |
+| 🌍 Other languages | **Multilingual** + `language_id` |
+| 🔁 Re-voice existing audio | **Voice conversion** (source → target speaker) |
+| 🖥️ Simple daily driver | Type `spitztxt` → menu · or flags for scripts |
+
+---
+
+## 📸 Terminal
+
+![spitztxt interactive terminal menu](docs/assets/spitztxt-terminal.png)
 
 ```bash
-# New stack (interactive menu)
+spitztxt            # interactive menu (default stack ≥ 0.1.7)
+spitztxt --version  # chatterbox-tts 0.1.7 | device cuda
+```
+
+---
+
+## 🚀 Quick start (one command)
+
+If you already have this machine set up (Mike’s lab):
+
+```bash
 spitztxt
-
-# Or from repo
-cd /home/lucid/projects/spitztxt
-./run_spitztxt.sh
 ```
 
-### Non-interactive examples
+| Command | What it runs |
+|---------|----------------|
+| **`spitztxt`** | **New stack** — `chatterbox-tts ≥ 0.1.7` (original · turbo · multilingual · VC) |
+| **`spitztxt-legacy`** | Classic **0.1.2** interactive CLI (untouched, still available) |
+
+Cold load of the default **original** model usually takes **~10–30s** (GPU). First use of Turbo / Multilingual may download multi‑GB weights from Hugging Face.
+
+---
+
+## 🛠️ Setup guide (fresh machine)
+
+### Requirements
+
+- Linux (WSL2 OK) · Python **3.12+**
+- NVIDIA GPU + CUDA recommended (CPU works but is slow)
+- Disk space for models (several GB after first download)
+
+### 1. Clone
 
 ```bash
+git clone git@github.com:Reperion/spitztxt.git
+cd spitztxt
+```
+
+### 2. Create the new environment
+
+```bash
+python3 -m venv venv-0.1.7
+source venv-0.1.7/bin/activate
+
+# setuptools pin: resemble-perth needs pkg_resources
+pip install -U pip 'setuptools>=70,<81'
+
+# PyTorch with CUDA 12.4 (adjust for your platform — see https://pytorch.org)
+pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu124
+
+pip install -r requirements.txt
+```
+
+### 3. Optional: `spitztxt` on your PATH
+
+```bash
+# example launcher in ~/bin
+cat > ~/bin/spitztxt << 'EOF'
+#!/usr/bin/env bash
+set -e
+REPO="${SPIZTXT_HOME:-$HOME/projects/spitztxt}"  # ← set your path
+cd "$REPO"
+exec "$REPO/venv-0.1.7/bin/python" "$REPO/spitztxt-CLI.py" "$@"
+EOF
+chmod +x ~/bin/spitztxt
+```
+
+Or from the repo:
+
+```bash
+./run_spitztxt.sh
+./run_spitztxt.sh --version
+```
+
+### 4. Smoke test (optional)
+
+```bash
+spitztxt --smoke --smoke-dir output/smoke
+# sequential: original · turbo · multilingual · VC  (VRAM-safe)
+```
+
+---
+
+## 📖 User manual
+
+### Interactive menu
+
+| Key | Action |
+|-----|--------|
+| **1** | 🔊 Basic TTS (default voice of current family) |
+| **2** | 🧬 Voice cloning (pick template # or path) |
+| **3** | 🎭 Emotion / CFG (`exaggeration`, `cfg_weight`, …) |
+| **4** | 🔄 Voice conversion (source audio → target voice) |
+| **5** | 🧠 Switch model family |
+| **6** | 🧹 Unload model (free VRAM) |
+| **0** | Exit |
+
+Voice templates live in **`voice-templates/`** (drop `.mp3` / `.wav` files there). Included examples: `kitt.mp3`, `morgan_cropped.mp3`.
+
+### Model families
+
+| Family | `--model` | Best for | Notes |
+|--------|-----------|----------|--------|
+| **Original** | `original` | Quality clone + emotion | CFG & exaggeration supported |
+| **Turbo** | `turbo` | Speed | Prompt **required** (>~5s). CFG / exaggeration / min_p **ignored** by library |
+| **Multilingual** | `multilingual` | Non‑English / multi‑lang | Requires `language_id` (e.g. `en`) |
+| **VC** | `vc` | Re-voice a recording | Needs `--source` + `--target` (no text) |
+
+### Non-interactive CLI (scripts & automation)
+
+```bash
+# Version / stack check
 spitztxt --version
 
 # Original TTS
 spitztxt --model original --text "Hello from spitztxt." -o output/hello.wav
 
-# Clone (KITT / Morgan templates in voice-templates/)
-spitztxt --model original --text "Knight Rider." --prompt voice-templates/kitt.mp3 -o output/kitt.wav
+# Clone
+spitztxt --model original \
+  --text "Knight Rider reporting." \
+  --prompt voice-templates/kitt.mp3 \
+  -o output/kitt.wav
 
-# Emotion / CFG knobs
-spitztxt --model original --text "Dramatic line." --prompt voice-templates/morgan_cropped.mp3 \
-  --exaggeration 0.8 --cfg-weight 0.3 -o output-emotion/drama.wav
+# Emotion knobs
+spitztxt --model original \
+  --text "This is dramatic." \
+  --prompt voice-templates/morgan_cropped.mp3 \
+  --exaggeration 0.8 --cfg-weight 0.3 \
+  -o output-emotion/drama.wav
 
-# Turbo (requires prompt; CFG/exaggeration ignored by library)
-spitztxt --model turbo --text "Fast clone." --prompt voice-templates/morgan_cropped.mp3 \
-  --temperature 0.7 --top-k 1000 -o output-turbo/t.wav
+# Turbo
+spitztxt --model turbo \
+  --text "Fast clone check." \
+  --prompt voice-templates/morgan_cropped.mp3 \
+  --temperature 0.7 --top-k 1000 \
+  -o output-turbo/t.wav
 
 # Multilingual
-spitztxt --model multilingual --text "Hello from multilingual." --language en \
-  --prompt voice-templates/morgan_cropped.mp3 -o output-multilingual/en.wav
+spitztxt --model multilingual \
+  --text "Hello from multilingual spitztxt." \
+  --language en \
+  --prompt voice-templates/morgan_cropped.mp3 \
+  -o output-multilingual/en.wav
 
-# Voice conversion (source speech → target voice)
-spitztxt --model vc --source output/hello.wav --target voice-templates/kitt.mp3 -o output-vc/vc.wav
-
-# Full sequential smoke (loads one model at a time — VRAM safe)
-spitztxt --smoke --smoke-dir output/smoke
+# Voice conversion
+spitztxt --model vc \
+  --source output/hello.wav \
+  --target voice-templates/kitt.mp3 \
+  -o output-vc/vc.wav
 ```
 
-### Legacy (0.1.2)
+### Useful knobs
 
-```bash
-spitztxt-legacy   # old interactive menu only
+| Flag | Used by | Role |
+|------|---------|------|
+| `--temperature` | original, turbo, mtl | Randomness / variation |
+| `--cfg-weight` | original, mtl | Guidance strength (not Turbo) |
+| `--exaggeration` | original, mtl | Emotional intensity (not Turbo) |
+| `--top-p` / `--top-k` | turbo (+ top_p elsewhere) | Sampling |
+| `--language` | multilingual | e.g. `en`, `nl`, `de`, … |
+| `--no-norm-loudness` | turbo | Disable ref loudness norm |
+
+### Reference audio tips 🎧
+
+- Prefer **clean, single-speaker**, little music/reverb.
+- **~6–10 seconds** is plenty for original (model hard-caps conditioners).
+- Turbo needs the prompt **longer than ~5 seconds**.
+- Longer files are truncated — **crop the best segment**, don’t feed a whole podcast.
+- Quality of the clip beats “more minutes of audio.”
+
+### Output folders
+
+| Folder | Contents |
+|--------|----------|
+| `output/` | Basic TTS & original clones |
+| `output-emotion/` | Emotion / CFG runs |
+| `output-turbo/` | Turbo |
+| `output-multilingual/` | Multilingual |
+| `output-vc/` | Voice conversion |
+| `errors/` | Timestamped logs |
+
+---
+
+## 🏗️ Architecture (short)
+
+```
+spitztxt-CLI.py     → menus + argparse
+spitztxt_core.py    → load / generate / save (shared by CLI + tests)
+venv-0.1.7/         → new stack (chatterbox-tts ≥ 0.1.7)
+venv → …/chatterbox/venv   → legacy 0.1.2 (spitztxt-legacy only)
 ```
 
-Does **not** use `venv-0.1.7`. Old env is the symlink `venv` → `../chatterbox/venv`.
+- **One model loaded at a time** (laptop GPU friendly). Use menu **6** or sequential `--smoke` to avoid OOM.
+- Generation helpers are the **same code path** as the interactive UI — smokes and tests call `spitztxt_core`, not a parallel reimplementation.
 
-## Model families
+---
 
-| Family | CLI `--model` | Notes |
-|--------|---------------|--------|
-| Original | `original` | Emotion + CFG + clone; ~6s enc / ~10s dec ref caps |
-| Turbo | `turbo` | Fast; **prompt required** (>~5s); no CFG/exaggeration/min_p |
-| Multilingual | `multilingual` | Requires `--language` / language_id (e.g. `en`) |
-| VC | `vc` | `--source` + `--target` audio (no text) |
-
-Sampling knobs exposed when supported: `temperature`, `cfg_weight`, `exaggeration`, `min_p`, `top_p`, `top_k`, `norm_loudness`, `repetition_penalty`.
-
-## Layout
-
-| Path | Role |
-|------|------|
-| `spitztxt_core.py` | Load/generate/save helpers (used by CLI + tests) |
-| `spitztxt-CLI.py` | Interactive + argparse entry |
-| `spitztxt-CLI-legacy.py` | Frozen 0.1.2 interactive CLI |
-| `venv-0.1.7/` | New stack (not in git) |
-| `venv` | Symlink to legacy 0.1.2 env |
-| `voice-templates/` | Clone / VC target prompts |
-| `output/`, `output-emotion/`, `output-turbo/`, `output-multilingual/`, `output-vc/` | WAV outputs |
-
-## Install (new machine)
-
-```bash
-git clone git@github.com:Reperion/spitztxt.git
-cd spitztxt
-python3 -m venv venv-0.1.7
-source venv-0.1.7/bin/activate
-pip install -U 'pip' 'setuptools>=70,<81'   # pkg_resources needed by resemble-perth
-pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu124
-pip install -r requirements.txt
-./run_spitztxt.sh --version
-```
-
-First run may download multi-GB HF weights (Turbo / Multilingual). Sequential load only — do not load all four models at once on a 16GB laptop GPU.
-
-## Tests
+## 🧪 Tests
 
 ```bash
 venv-0.1.7/bin/python -m pytest tests/ -v
-# GPU generate tests may take minutes; structural tests are fast
 ```
 
-## Reference audio tips
+Structural tests are fast. GPU generate tests may take longer and need CUDA.
 
-- Clean, single-speaker, little reverb/noise.
-- Original: ~6–10s is enough (hard caps in the model).
-- Turbo: prompt must be **> 5 seconds**.
-- Longer files are truncated; crop the best segment rather than feeding a full podcast.
+---
+
+## 📦 Dual stack (legacy)
+
+| Stack | Package | Launcher |
+|-------|---------|----------|
+| **Default** | `chatterbox-tts ≥ 0.1.7` | `spitztxt` |
+| **Legacy** | `chatterbox-tts == 0.1.2` | `spitztxt-legacy` |
+
+Legacy env is **not** upgraded in place. See `requirements-legacy.txt`.
+
+---
+
+## 🙏 Credits
+
+- TTS / clone / VC models: **[Resemble AI — Chatterbox](https://github.com/resemble-ai/chatterbox)** (MIT)
+- CLI & local workflow: **spitztxt** / Reperion
+
+---
+
+## 📄 License
+
+Project packaging and CLI: use under the same spirit as Chatterbox (MIT-friendly).  
+Model weights and third-party packages: see their respective licenses.  
+Watermarking via Resemble Perth may be applied by the upstream library.
+
+---
+
+**Have fun.** Type `spitztxt`, pick a voice, make something weird. 🚀
