@@ -45,3 +45,18 @@ backup
 # Miscellaneous
 *.bak
 *.swp
+
+# Virtualenvs (keep out of git)
+venv-0.1.7/
+venv/
+.venv/
+
+# Generated audio (large)
+output/**/*.wav
+output-emotion/**/*.wav
+output-turbo/**/*.wav
+output-multilingual/**/*.wav
+output-vc/**/*.wav
+!output/**/.gitkeep
+!output-emotion/**/.gitkeep
+errors/*.log

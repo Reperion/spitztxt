@@ -1,0 +1,5 @@
+# Frozen for the known-good 0.1.2 environment (spitztxt-legacy).
+chatterbox-tts==0.1.2
+colorama>=0.4.6
+torch
+torchaudio

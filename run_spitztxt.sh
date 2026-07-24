@@ -1,21 +1,21 @@
 #!/bin/bash
-# spitztxt launcher — activate local venv if present and run the CLI
+# spitztxt launcher — prefer venv-0.1.7 (new stack), fall back to .venv
 set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
-if [ -d "venv" ]; then
-  # shellcheck disable=SC1091
-  source venv/bin/activate
-elif [ -d ".venv" ]; then
-  # shellcheck disable=SC1091
-  source .venv/bin/activate
+if [ -x "$SCRIPT_DIR/venv-0.1.7/bin/python" ]; then
+  PY="$SCRIPT_DIR/venv-0.1.7/bin/python"
+elif [ -x "$SCRIPT_DIR/.venv/bin/python" ]; then
+  PY="$SCRIPT_DIR/.venv/bin/python"
+elif [ -x "$SCRIPT_DIR/venv/bin/python" ]; then
+  # last resort: legacy symlink (0.1.2)
+  echo "warning: using legacy venv; prefer venv-0.1.7" >&2
+  PY="$SCRIPT_DIR/venv/bin/python"
 else
-  echo "No venv found. Create one first, e.g.:"
-  echo "  python3 -m venv venv && source venv/bin/activate"
-  echo "  pip install torch torchaudio colorama chatterbox-tts"
+  echo "No venv found. Create venv-0.1.7 and pip install -r requirements.txt" >&2
   exit 1
 fi
 
-echo "Starting spitztxt..."
-python spitztxt-CLI.py
+echo "Starting spitztxt (python=$PY)..."
+exec "$PY" "$SCRIPT_DIR/spitztxt-CLI.py" "$@"

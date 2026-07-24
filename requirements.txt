@@ -1,5 +1,11 @@
-# Core (torch/torchaudio: install per https://pytorch.org for your CUDA)
-chatterbox-tts>=0.1.2
+# Active stack (venv-0.1.7): chatterbox family with Turbo / Multilingual / VC
+# Install torch/torchaudio for your CUDA first, then:
+#   pip install -r requirements.txt
+chatterbox-tts>=0.1.7
 colorama>=0.4.6
 torch
 torchaudio
+setuptools>=70,<81  # pkg_resources required by resemble-perth watermarker
+
+# Legacy stack (0.1.2) lives in the linked `venv` -> projects/chatterbox/venv
+# and is launched via `spitztxt-legacy`. Do not upgrade that env in place.

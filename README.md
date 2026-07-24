@@ -6,150 +6,119 @@
 ╚════██║██╔═══╝ ██║   ██║    ███╔╝     ██║    ██╔██╗    ██║   
 ███████║██║     ██║   ██║   ███████╗   ██║   ██╔╝ ██╗   ██║   
 ╚══════╝╚═╝     ╚═╝   ╚═╝   ╚══════╝   ╚═╝   ╚═╝  ╚═╝   ╚═╝   
-     ### Your Awesome Text-to-Speech Tool ###
+
+     ### spitztxt — Chatterbox TTS family CLI ###
 ```
 
-# spitztxt - Your Command-Line Text-to-Speech Tool
+# spitztxt
 
+> **Active repo:** [Reperion/spitztxt](https://github.com/Reperion/spitztxt)  
+> Formerly [Reperion/Chatterbox](https://github.com/Reperion/Chatterbox) (kept for history).
 
-> **Active development:** [Reperion/spitztxt](https://github.com/Reperion/spitztxt)  
-> This project was formerly tracked as [Reperion/Chatterbox](https://github.com/Reperion/Chatterbox) (kept for history). Iterate here.
+CLI for **ResembleAI Chatterbox** — basic TTS, zero-shot voice cloning, emotion/CFG, **Turbo**, **Multilingual**, and **Voice Conversion**.
 
+| Stack | Package | How to run |
+|-------|---------|------------|
+| **Default (new)** | `chatterbox-tts` **≥ 0.1.7** in `venv-0.1.7/` | `spitztxt` |
+| **Legacy** | `chatterbox-tts` **0.1.2** in linked `venv/` | `spitztxt-legacy` |
 
-[![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Python Version](https://img.shields.io/badge/Python-3.8%2B-blue.svg)](https://www.python.org/)
-[![Status](https://img.shields.io/badge/Status-Development-orange.svg)](https://github.com/Reperion/spitztxt)
+## Quick start
 
-## Description
+```bash
+# New stack (interactive menu)
+spitztxt
 
-`spitztxt` is a powerful command-line interface (CLI) tool built on top of the Chatterbox TTS model, designed to provide easy access to advanced Text-to-Speech (TTS), Voice Cloning, and Emotional Tone Control functionalities. Whether you need to convert text to speech, clone a voice from an audio sample, or infuse your generated audio with specific emotions, `spitztxt` offers a straightforward and interactive experience directly from your terminal.
+# Or from repo
+cd /home/lucid/projects/spitztxt
+./run_spitztxt.sh
+```
 
-## Features
+### Non-interactive examples
 
--   **Basic Text-to-Speech (TTS):** Convert any input text into high-quality spoken audio.
--   **Voice Cloning:** Generate speech in a voice that mimics a provided audio prompt, allowing for personalized audio output.
--   **Emotional Tone Control:** Fine-tune the emotional expression of the generated speech using `exaggeration` and `cfg_weight` parameters for nuanced results.
--   **Interactive CLI:** User-friendly menu-driven interface for seamless navigation and operation.
--   **Cross-Platform Compatibility:** Built with `colorama` for consistent stylized output across different operating systems.
--   **Automatic Device Detection:** Automatically utilizes `cuda` (GPU) if available for faster processing, falling back to `cpu` otherwise.
+```bash
+spitztxt --version
 
-## Installation
+# Original TTS
+spitztxt --model original --text "Hello from spitztxt." -o output/hello.wav
 
-To get `spitztxt` up and running, follow these steps:
+# Clone (KITT / Morgan templates in voice-templates/)
+spitztxt --model original --text "Knight Rider." --prompt voice-templates/kitt.mp3 -o output/kitt.wav
 
-### Prerequisites
+# Emotion / CFG knobs
+spitztxt --model original --text "Dramatic line." --prompt voice-templates/morgan_cropped.mp3 \
+  --exaggeration 0.8 --cfg-weight 0.3 -o output-emotion/drama.wav
 
--   Python 3.8 or higher
--   `pip` (Python package installer)
+# Turbo (requires prompt; CFG/exaggeration ignored by library)
+spitztxt --model turbo --text "Fast clone." --prompt voice-templates/morgan_cropped.mp3 \
+  --temperature 0.7 --top-k 1000 -o output-turbo/t.wav
 
-### Clone the Repository
+# Multilingual
+spitztxt --model multilingual --text "Hello from multilingual." --language en \
+  --prompt voice-templates/morgan_cropped.mp3 -o output-multilingual/en.wav
+
+# Voice conversion (source speech → target voice)
+spitztxt --model vc --source output/hello.wav --target voice-templates/kitt.mp3 -o output-vc/vc.wav
+
+# Full sequential smoke (loads one model at a time — VRAM safe)
+spitztxt --smoke --smoke-dir output/smoke
+```
+
+### Legacy (0.1.2)
+
+```bash
+spitztxt-legacy   # old interactive menu only
+```
+
+Does **not** use `venv-0.1.7`. Old env is the symlink `venv` → `../chatterbox/venv`.
+
+## Model families
+
+| Family | CLI `--model` | Notes |
+|--------|---------------|--------|
+| Original | `original` | Emotion + CFG + clone; ~6s enc / ~10s dec ref caps |
+| Turbo | `turbo` | Fast; **prompt required** (>~5s); no CFG/exaggeration/min_p |
+| Multilingual | `multilingual` | Requires `--language` / language_id (e.g. `en`) |
+| VC | `vc` | `--source` + `--target` audio (no text) |
+
+Sampling knobs exposed when supported: `temperature`, `cfg_weight`, `exaggeration`, `min_p`, `top_p`, `top_k`, `norm_loudness`, `repetition_penalty`.
+
+## Layout
+
+| Path | Role |
+|------|------|
+| `spitztxt_core.py` | Load/generate/save helpers (used by CLI + tests) |
+| `spitztxt-CLI.py` | Interactive + argparse entry |
+| `spitztxt-CLI-legacy.py` | Frozen 0.1.2 interactive CLI |
+| `venv-0.1.7/` | New stack (not in git) |
+| `venv` | Symlink to legacy 0.1.2 env |
+| `voice-templates/` | Clone / VC target prompts |
+| `output/`, `output-emotion/`, `output-turbo/`, `output-multilingual/`, `output-vc/` | WAV outputs |
+
+## Install (new machine)
 
 ```bash
 git clone git@github.com:Reperion/spitztxt.git
 cd spitztxt
-```
-
-### Install Dependencies
-
-`spitztxt` relies on `chatterbox` for its core TTS functionalities, along with `torch`, `torchaudio`, and `colorama`.
-
-```bash
+python3 -m venv venv-0.1.7
+source venv-0.1.7/bin/activate
+pip install -U 'pip' 'setuptools>=70,<81'   # pkg_resources needed by resemble-perth
+pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu124
 pip install -r requirements.txt
-# If you don't have a requirements.txt, you might need to install them manually:
-# pip install torch torchaudio colorama chatterbox
+./run_spitztxt.sh --version
 ```
-**Note:** `torch` and `torchaudio` installation might vary based on your system and CUDA availability. Refer to the official PyTorch documentation for specific instructions if you encounter issues.
 
-## Usage
+First run may download multi-GB HF weights (Turbo / Multilingual). Sequential load only — do not load all four models at once on a 16GB laptop GPU.
 
-To start the `spitztxt` CLI, simply run the `spitztxt-CLI.py` script:
+## Tests
 
 ```bash
-python spitztxt-CLI.py
+venv-0.1.7/bin/python -m pytest tests/ -v
+# GPU generate tests may take minutes; structural tests are fast
 ```
 
-Upon launching, you will be presented with a main menu:
+## Reference audio tips
 
-```
- 
-███████╗██████╗ ██╗████████╗███████╗████████╗██╗  ██╗████████╗
-██╔════╝██╔══██╗██║╚══██╔══╝╚══███╔╝╚══██╔══╝╚██╗██╔╝╚══██╔══╝
-███████╗██████╔╝██║   ██║     ███╔╝    ██║    ╚███╔╝    ██║   
-╚════██║██╔═══╝ ██║   ██║    ███╔╝     ██║    ██╔██╗    ██║   
-███████║██║     ██║   ██║   ███████╗   ██║   ██╔╝ ██╗   ██║   
-╚══════╝╚═╝     ╚═╝   ╚═╝   ╚══════╝   ╚═╝   ╚═╝  ╚═╝   ╚═╝   
-
-     ### Your Awesome Text-to-Speech Tool ###
-
-This is the spitztxt CLI tool for Text-to-Speech, Voice Cloning, and Emotional Tone Control.
-
-Choose an option to proceed:
-
-1. Basic Text-to-Speech
-2. Voice Cloning
-3. Emotional Tone Control
-0. Exit
-```
-
-Follow the on-screen prompts to select your desired functionality.
-
-### Examples
-
-#### Basic Text-to-Speech
-
-1.  Select option `1` from the main menu.
-2.  Enter the text you wish to convert to speech.
-3.  Provide an output filename (e.g., `my_audio.wav`).
-
-#### Voice Cloning
-
-1.  Select option `2` from the main menu.
-2.  You will be prompted to provide a path to a voice prompt audio file (e.g., an MP3 or WAV file). You can also choose from available templates in the `voice-templates` directory.
-3.  Enter the text you want the cloned voice to speak.
-4.  Provide an output filename (e.g., `cloned_voice_output.wav`).
-
-#### Emotional Tone Control
-
-1.  Select option `3` from the main menu.
-2.  Enter the text you wish to speak.
-3.  Optionally, provide a path to a voice prompt audio file for cloning the voice.
-4.  Adjust `exaggeration` (e.g., `0.5` to `1.5`) and `cfg_weight` (e.g., `0.0` to `1.0`) parameters to control the emotional intensity and pacing.
-    *   **Tips:**
-        *   **General Use:** Default settings (exaggeration=0.5, cfg_weight=0.5) work well.
-        *   **Fast Speaking Style:** Lower `cfg_weight` (around `0.3`) can improve pacing.
-        *   **Expressive/Dramatic Speech:** Try lower `cfg_weight` (e.g., `~0.3`) and increase `exaggeration` (e.g., `0.7` or higher).
-5.  Provide an output filename (e.g., `emotional_speech.wav`). Emotional audio files are saved to the `output-emotion` directory.
-
-## Voice Templates
-
-The `voice-templates` directory is used to store audio files that can be used as prompts for voice cloning and emotional tone control. You can place your `.mp3` or `.wav` files in this directory, and `spitztxt` will list them as available options.
-
-## Output Directories
-
--   **`output/`**: Contains audio files generated from basic TTS and voice cloning.
--   **`output-emotion/`**: Contains audio files generated with emotional tone control.
-
-## Error Logging
-
-`spitztxt` logs errors to a dedicated `errors/` directory. Each error log file is timestamped for easy debugging and tracking.
-
-## Contributing
-
-We welcome contributions to `spitztxt`! If you have suggestions for improvements, new features, or bug fixes, please feel free to:
-
-1.  Fork the repository.
-2.  Create a new branch (`git checkout -b feature/your-feature-name`).
-3.  Make your changes.
-4.  Commit your changes (`git commit -m 'Add new feature'`).
-5.  Push to the branch (`git push origin feature/your-feature-name`).
-6.  Open a Pull Request.
-
-Please ensure your code adheres to good practices and includes relevant tests if applicable.
-
-## License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## Contact
-
-For any questions or feedback, please open an issue on the GitHub repository.
+- Clean, single-speaker, little reverb/noise.
+- Original: ~6–10s is enough (hard caps in the model).
+- Turbo: prompt must be **> 5 seconds**.
+- Longer files are truncated; crop the best segment rather than feeding a full podcast.
