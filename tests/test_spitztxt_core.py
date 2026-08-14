@@ -66,6 +66,10 @@ def test_resolve_prompt_templates():
     p = core.resolve_prompt("1", templates)
     assert p is not None and p.is_file()
     assert core.resolve_prompt("", templates) is None
+    elon = core.resolve_prompt("Elon", templates)
+    assert elon is not None and elon.stem.lower() == "elon" and elon.is_file()
+    assert core.resolve_prompt("elon", templates) == elon
+    assert core.resolve_prompt("elon.wav", templates) == elon
 
 
 def test_package_version_readable_in_new_env():

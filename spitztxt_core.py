@@ -520,7 +520,7 @@ def get_supported_languages() -> dict[str, str]:
 
 
 def resolve_prompt(user_input: str, templates: Optional[list[Path]] = None) -> Optional[Path]:
-    """Resolve template index (1-based), path, or empty -> None."""
+    """Resolve template index (1-based), stem/name (e.g. Elon), path, or empty -> None."""
     user_input = (user_input or "").strip()
     if not user_input:
         return None
@@ -531,10 +531,19 @@ def resolve_prompt(user_input: str, templates: Optional[list[Path]] = None) -> O
             return templates[idx]
         raise ValueError(f"Invalid template number {user_input}")
     p = Path(user_input).expanduser()
-    if not p.is_file():
-        # try relative to templates
-        alt = VOICE_TEMPLATES_DIR / user_input
-        if alt.is_file():
-            return alt
-        raise FileNotFoundError(f"Voice prompt not found: {user_input}")
-    return p
+    if p.is_file():
+        return p
+    alt = VOICE_TEMPLATES_DIR / user_input
+    if alt.is_file():
+        return alt
+    key = user_input.lower()
+    for suf in (".wav", ".mp3", ".flac", ".ogg", ".m4a"):
+        if key.endswith(suf):
+            key = key[: -len(suf)]
+            break
+    # Prefer wav when both elon.wav and elon.mp3 exist
+    stem_hits = [t for t in templates if t.stem.lower() == key]
+    if stem_hits:
+        stem_hits.sort(key=lambda t: {".wav": 0, ".flac": 1}.get(t.suffix.lower(), 2))
+        return stem_hits[0]
+    raise FileNotFoundError(f"Voice prompt not found: {user_input}")

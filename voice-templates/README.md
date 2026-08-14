@@ -13,6 +13,14 @@ Line (approx.): *“I am the voice of Knight Industry 2000’s microprocessor…
 
 Source for clear version: short public clip of the series intro VO (processed with highpass/lowpass + loudnorm). For personal experimentation only; respect copyright for any public/commercial use.
 
+## Elon
+
+| File | Notes |
+|------|--------|
+| `elon.wav` | ~10s JRE #2404 clip @ 1:44:40, processed mono 48 kHz + loudnorm. Menu name: **Elon**. |
+
+Personal lab clone prompt only — not for public/commercial impersonation.
+
 ## Morgan
 
 | File | Notes |

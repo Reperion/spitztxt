@@ -562,10 +562,13 @@ def run_noninteractive(args: argparse.Namespace) -> int:
                     core.MODEL_ORIGINAL: core.OUTPUT_DIR,
                 }[fam]
                 out = str(sub / "cli_out.wav")
+            prompt = args.prompt
+            if prompt:
+                prompt = str(core.resolve_prompt(prompt))
             path = core.generate_tts(
                 args.text,
                 family=fam,
-                audio_prompt_path=args.prompt,
+                audio_prompt_path=prompt,
                 params=params,
                 out_path=out,
             )

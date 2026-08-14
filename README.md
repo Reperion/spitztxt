@@ -133,7 +133,7 @@ spitztxt --smoke --smoke-dir output/smoke
 
 **Navigation:** type **`b`** (or `back`) at **any** submenu prompt to return to the main menu.
 
-Voice templates live in **`voice-templates/`** (drop `.mp3` / `.wav` files there). Included examples: `kitt.mp3`, `kitt_clear.wav`, `morgan_cropped.mp3`.
+Voice templates live in **`voice-templates/`** (drop `.mp3` / `.wav` files there). Included examples: `elon.wav`, `kitt.mp3`, `kitt_clear.wav`, `morgan_cropped.mp3`. Type a template # or a name (`Elon`, `kitt_clear`).
 
 ### Auto model switching (you should not babysit VRAM)
 
